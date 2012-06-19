@@ -1,0 +1,17 @@
+ctrl+shift+r = Reload Customers
+ctrl+shift+c = Clear Cache
+
+Add these to user keybindings:
+[
+{ "keys": ["ctrl+shift+r"], "command": "reloadcustomers" }, { "keys": 
+["ctrl+shift+c"], "command": "clearcache" } ]
+
+and add this
+
+https://gist.github.com/44107e8e4f4351177bd8
+
+as a python file (ex: commands.py) into your config/Packages/User folder.
+
+On ubuntu, it's ~/.config/sublime-text-2/Packages/User
+
+then profit!
