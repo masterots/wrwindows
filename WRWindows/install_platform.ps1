@@ -5,6 +5,10 @@ $svnworkHome = $rootDrive + "\svnwork"
 $toolsHome = $rootDrive + "\tools"
 $mavenHome = $toolsHome + "\maven"
 $userHome = $env:USERPROFILE
+$time = Get-Date -Format r
+
+##### IMPORT SVN URLS #####
+. "ignoredFiles\svnUrls.ps1"
 
 ##### GET LATEST BRANCH VERSION #####
 $branchVersion = svn ls $branchUrl | Sort-Object -Descending | Select-Object -First 1 -Skip 1 | %{$_ -replace '/','' }
@@ -15,7 +19,7 @@ $logfile = $svnworkHome + "\logfile.txt"
 ##### FUNCTIONS FOR SVNWORK INSTALL #####
 function getFiles ($remoteUrl, $localFolder, $currentBranchVersion, $workingClean) 
 {
-	Write-Output "Installing $localFolder"; Get-Date >> $logfile
+	logEvent ("Installing {0}" -f $localFolder)
 	if ($currentBranchVersion)
 	{
 		svn co ($remoteUrl+$branchVersion) $svnworkHome\$localFolder\$branchVersion\$workingClean
@@ -25,14 +29,16 @@ function getFiles ($remoteUrl, $localFolder, $currentBranchVersion, $workingClea
 		svn co $remoteUrl $svnworkHome\$localFolder\trunk\$workingClean
 	}
 	
-	if ($workingClean == 'clean')
+	if ($workingClean -eq 'clean')
 	{
-        if ($isBranch)
+        if ($currentBranchVersion)
         {
-            copy-item $svnworkHome\$localFolder\$branchVersion\clean -destination $svnworkHome\$localFolder\$branchVersion\working -recurse
+			logEvent "Installing $localFolder\$branchVersion clean to working"
+			copy-item $svnworkHome\$localFolder\$branchVersion\clean -destination $svnworkHome\$localFolder\$branchVersion\working -recurse
         }
         else 
         {
+			logEvent "Copying $localFolder clean to working"
             copy-item $svnworkHome\$localFolder\trunk\clean -destination $svnworkHome\$localFolder\trunk\working -recurse
         }
 
@@ -53,11 +59,18 @@ function installTools {
 }
 
 function setupDirectories {
-	New-Item -Type directory -Path $svnworkHome\prr 
-	New-Item -Type directory -Path $svnworkHome\defaultui
-	New-Item -Type directory -Path $svnworkHome\customers 
-    New-Item -Type directory -Path $svnworkHome\techservices
-    New-Item -Type directory -Path $svnworkHome\svnscripts
+	$dirList = 'prr','defaultui','customers','techservices','svnscripts'
+	foreach ($dir in $dirList)
+	{
+		if ((Test-Path $svnworkHome\$dir) -eq $True) {
+			logEvent "$dir already exists"
+		}
+		else
+		{
+			New-Item -Type directory -Path $svnworkHome\$dir
+			logEvent "Created $svnworkHome\$dir"
+		}
+	}
 	
 	#getSvnScripts
 	getFiles -remoteUrl $svnScriptsUrl -localFolder svnscripts -workingClean working
@@ -72,7 +85,7 @@ function setupDirectories {
 	#getPrrBranch $branchVersion
 	getFiles -remoteUrl $prrBranchUrl -localFolder prr -currentBranchVersion $branchVersion -workingClean working
 	#getDefaultUiBranch $branchVersion
-	getFiles -remoteUrl $defaultUiBranchUrl -localFolder defaultui -currentBranchVersion $branchVersion -workingClean clean -isBranch true
+	getFiles -remoteUrl $defaultUiBranchUrl -localFolder defaultui -currentBranchVersion $branchVersion -workingClean clean
 }
 
 function configureSubversion {
@@ -146,11 +159,18 @@ $env:path += ";$toolsHome\junction;$toolsHome\maven\bin;$toolsHome\ant\bin;$tool
 "@
 }
 
+function logEvent ($logString) {
+	$time = Get-Date -Format T
+	Write-Output "$logString $time"
+	Write-Output "$logString $time" >> $logfile
+}
+
 ##### BEGIN INSTALLATION #####
 Write-Output "Windows Bazaarvoice Dev Environment Setup Script" > $logfile
-Write-Output "Started install at: "; Get-Date >> $logfile
-setupDirectories
-installTools
+logEvent "Started install at"
 
-addEnvSetup
-Write-Output "Install completed:"; Get-Date >> $logfile
+setupDirectories
+#installTools
+
+#addEnvSetup
+logEvent "Install completed"
