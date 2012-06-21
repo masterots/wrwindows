@@ -1,5 +1,5 @@
 ﻿##### SET SOME GLOBAL VARIABLES #####
-param($rootDrive = "C:" )
+$rootDrive = "C:"
 $javaHome = "C:\java\jdk1.6"
 $svnworkHome = $rootDrive + "\svnwork"
 $toolsHome = $rootDrive + "\tools"
@@ -16,7 +16,56 @@ $branchVersion = svn ls $branchUrl | Sort-Object -Descending | Select-Object -Fi
 ##### CREATE LOG FILE #####
 $logfile = $svnworkHome + "\logfile.txt"
 
+function logEvent ($logString) {
+	$time = Get-Date -Format T
+	Write-Output "$logString $time"
+	Write-Output "$logString $time" >> $logfile
+}
+
 ##### FUNCTIONS FOR SVNWORK INSTALL #####
+
+##### TOOLS SETUP #####
+function installTools {
+    configureSubversion
+    installJunction
+    installMaven
+    installAnt
+    installXmlBeans
+}
+
+##### CREATE DIRECTORIES AND PULL FILES FROM SVN #####
+function setupDirectories {
+	$dirList = 'prr','defaultui','customers','techservices','svnscripts'
+	foreach ($dir in $dirList)
+	{
+		if ((Test-Path $svnworkHome\$dir) -eq $True) {
+			logEvent "$dir already exists"
+		}
+		else
+		{
+			New-Item -Type directory -Path $svnworkHome\$dir
+			logEvent "Created $svnworkHome\$dir"
+		}
+	}
+	
+	#getSvnScripts
+	getFiles -remoteUrl $svnScriptsUrl -localFolder svnscripts -workingClean working
+	#getTechServices
+	getFiles -remoteUrl $techservicesUrl -localFolder techservices -workingClean working
+	#getPrrTrunk
+	getFiles -remoteUrl $prrTrunkUrl -localFolder prr -workingClean working
+	#getDefaultUiTrunk
+	getFiles -remoteUrl $defaultUiTrunkUrl -localFolder defaultui -workingClean clean
+	#getCustomersTrunk
+	getFiles -remoteUrl $customersTrunkUrl -localFolder customers -workingClean clean
+	#getPrrBranch $branchVersion
+	getFiles -remoteUrl $prrBranchUrl -localFolder prr -currentBranchVersion $branchVersion -workingClean working
+	createSymLink -linkName branch -linkUrl $svnworkHome\prr\$branchVersion
+	#getDefaultUiBranch $branchVersion
+	getFiles -remoteUrl $defaultUiBranchUrl -localFolder defaultui -currentBranchVersion $branchVersion -workingClean clean
+	createSymLink -linkName branch -linkUrl $svnworkHome\defaultui\$branchVersion
+}
+
 function getFiles ($remoteUrl, $localFolder, $currentBranchVersion, $workingClean) 
 {
 	logEvent ("Installing {0}" -f $localFolder)
@@ -45,47 +94,8 @@ function getFiles ($remoteUrl, $localFolder, $currentBranchVersion, $workingClea
 	}
 }
 
-function setupSymlinks {
-
-}
-
-##### TOOLS SETUP #####
-function installTools {
-    configureSubversion
-    installJunction
-    installMaven
-    installAnt
-    installXmlBeans
-}
-
-function setupDirectories {
-	$dirList = 'prr','defaultui','customers','techservices','svnscripts'
-	foreach ($dir in $dirList)
-	{
-		if ((Test-Path $svnworkHome\$dir) -eq $True) {
-			logEvent "$dir already exists"
-		}
-		else
-		{
-			New-Item -Type directory -Path $svnworkHome\$dir
-			logEvent "Created $svnworkHome\$dir"
-		}
-	}
-	
-	#getSvnScripts
-	getFiles -remoteUrl $svnScriptsUrl -localFolder svnscripts -workingClean working
-	#getTechServices
-	getFiles -remoteUrl $techservicesUrl -localFolder techservices -workingClean working
-	#getPrrTrunk
-	getFiles -remoteUrl $prrTrunkUrl -localFolder prr -workingClean working
-	#getDefaultUiTrunk
-	getFiles -remoteUrl $defaultUiTrunkUrl -localFolder defaultui -workingClean clean
-	#getCustomersTrunk
-	getFiles -remoteUrl $customersTrunkUrl -localFolder customers -workingClean clean
-	#getPrrBranch $branchVersion
-	getFiles -remoteUrl $prrBranchUrl -localFolder prr -currentBranchVersion $branchVersion -workingClean working
-	#getDefaultUiBranch $branchVersion
-	getFiles -remoteUrl $defaultUiBranchUrl -localFolder defaultui -currentBranchVersion $branchVersion -workingClean clean
+function createSymLink ($linkName, $linkUrl) {
+	Junction.exe $linkName $linkUrl
 }
 
 function configureSubversion {
@@ -94,7 +104,6 @@ function configureSubversion {
     "Configuring subversion" >> $logfile
     svn cat https://dev.bazaarvoice.com/svn/bvc/ops/trunk/scm/client/config > $userHome\.subversion\config
 }
-
 
 function installJunction {
     New-Item -Type directory -Path $toolsHome\junction
@@ -151,26 +160,21 @@ function installXmlBeans {
 }
 
 function addEnvSetup {
-@"
-$env:JAVA_HOME += $javaHome
-$env:MAVEN_HOME += $mavenHome
-$env:TOOLS_HOME += $toolsHome
-$env:path += ";$toolsHome\junction;$toolsHome\maven\bin;$toolsHome\ant\bin;$toolsHome\xmlbeans;$javaHome;$javaHome\bin;"
-"@
+	Add-Content -Path $profile -Value ('$env:JAVA_HOME' + " = $javaHome")
+	Add-Content -Path $profile -Value ('$env:MAVEN_HOME' + " = $mavenHome")
+	Add-Content -Path $profile -Value ('$env:TOOLS_HOME' + " = $toolsHome")
+	Add-Content -Path $profile -Value ('$env:path' + " += ;$toolsHome\junction;$toolsHome\maven\bin;$toolsHome\ant\bin;$toolsHome\xmlbeans;$javaHome;$javaHome\bin;")
 }
 
-function logEvent ($logString) {
-	$time = Get-Date -Format T
-	Write-Output "$logString $time"
-	Write-Output "$logString $time" >> $logfile
-}
 
 ##### BEGIN INSTALLATION #####
-Write-Output "Windows Bazaarvoice Dev Environment Setup Script" > $logfile
+Write-Output "Windows Bazaarvoice Dev Environment Setup Script\n" > $logfile
 logEvent "Started install at"
 
-setupDirectories
 #installTools
+#setupDirectories
 
-#addEnvSetup
+addEnvSetup
 logEvent "Install completed"
+ 
+##### END INSTALLATION #####
