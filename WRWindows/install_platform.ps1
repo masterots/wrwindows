@@ -1,6 +1,6 @@
 ﻿##### SET SOME GLOBAL VARIABLES #####
 $rootDrive = "C:"
-$javaHome = "C:\java\jdk1.6"
+$javaHome = "C:\java\jre"
 $svnworkHome = $rootDrive + "\svnwork"
 $toolsHome = $rootDrive + "\tools"
 $mavenHome = $toolsHome + "\maven"
@@ -25,77 +25,73 @@ function logEvent ($logString) {
 ##### FUNCTIONS FOR SVNWORK INSTALL #####
 
 ##### TOOLS SETUP #####
-function installTools {
-    configureSubversion
-    installJunction
-    installMaven
-    installAnt
-    installXmlBeans
-}
-
 ##### CREATE DIRECTORIES AND PULL FILES FROM SVN #####
 function setupDirectories {
-	$dirList = 'prr','defaultui','customers','techservices','svnscripts'
-	foreach ($dir in $dirList)
-	{
-		if ((Test-Path $svnworkHome\$dir) -eq $True) {
-			logEvent "$dir already exists"
-		}
-		else
-		{
-			New-Item -Type directory -Path $svnworkHome\$dir
-			logEvent "Created $svnworkHome\$dir"
-		}
-	}
-	
-	#getSvnScripts
-	getFiles -remoteUrl $svnScriptsUrl -localFolder svnscripts -workingClean working
-	#getTechServices
-	getFiles -remoteUrl $techservicesUrl -localFolder techservices -workingClean working
-	#getPrrTrunk
-	getFiles -remoteUrl $prrTrunkUrl -localFolder prr -workingClean working
-	#getDefaultUiTrunk
-	getFiles -remoteUrl $defaultUiTrunkUrl -localFolder defaultui -workingClean clean
-	#getCustomersTrunk
-	getFiles -remoteUrl $customersTrunkUrl -localFolder customers -workingClean clean
-	#getPrrBranch $branchVersion
-	getFiles -remoteUrl $prrBranchUrl -localFolder prr -currentBranchVersion $branchVersion -workingClean working
-	createSymLink -linkName branch -linkUrl $svnworkHome\prr\$branchVersion
-	#getDefaultUiBranch $branchVersion
-	getFiles -remoteUrl $defaultUiBranchUrl -localFolder defaultui -currentBranchVersion $branchVersion -workingClean clean
-	createSymLink -linkName branch -linkUrl $svnworkHome\defaultui\$branchVersion
+    $dirList = 'prr','defaultui','customers','techservices','svnscripts'
+    foreach ($dir in $dirList)
+    {
+        if ((Test-Path $svnworkHome\$dir) -eq $True) {
+            logEvent "$dir already exists"
+        }
+        else
+        {
+            New-Item -Type directory -Path $svnworkHome\$dir
+            logEvent "Created $svnworkHome\$dir"
+        }
+    }
+    
+    #getSvnScripts
+    getFiles -remoteUrl $svnScriptsUrl -localFolder svnscripts -workingClean working
+    #getTechServices
+    getFiles -remoteUrl $techservicesUrl -localFolder techservices -workingClean working
+    #getPrrTrunk
+    getFiles -remoteUrl $prrTrunkUrl -localFolder prr -workingClean working
+    #getDefaultUiTrunk
+    getFiles -remoteUrl $defaultUiTrunkUrl -localFolder defaultui -workingClean clean
+    #getCustomersTrunk
+    getFiles -remoteUrl $customersTrunkUrl -localFolder customers -workingClean clean
+    #getPrrBranch $branchVersion
+    getFiles -remoteUrl $prrBranchUrl -localFolder prr -currentBranchVersion $branchVersion -workingClean working
+    createSymLink -linkName branch -linkUrl $svnworkHome\prr\$branchVersion
+    #getDefaultUiBranch $branchVersion
+    getFiles -remoteUrl $defaultUiBranchUrl -localFolder defaultui -currentBranchVersion $branchVersion -workingClean clean
+    createSymLink -linkName branch -linkUrl $svnworkHome\defaultui\$branchVersion
 }
 
 function getFiles ($remoteUrl, $localFolder, $currentBranchVersion, $workingClean) 
 {
-	logEvent ("Installing {0}" -f $localFolder)
-	if ($currentBranchVersion)
-	{
-		svn co ($remoteUrl+$branchVersion) $svnworkHome\$localFolder\$branchVersion\$workingClean
-	}
-	else
-	{
-		svn co $remoteUrl $svnworkHome\$localFolder\trunk\$workingClean
-	}
-	
-	if ($workingClean -eq 'clean')
-	{
+    logEvent ("Installing {0}" -f $localFolder)
+    if ($currentBranchVersion)
+    {
+        svn co ($remoteUrl+$branchVersion) $svnworkHome\$localFolder\$branchVersion\$workingClean
+    }
+    else
+    {
+        svn co $remoteUrl $svnworkHome\$localFolder\trunk\$workingClean
+    }
+    
+    if ($workingClean -eq 'clean')
+    {
         if ($currentBranchVersion)
         {
-			logEvent "Installing $localFolder\$branchVersion clean to working"
-			copy-item $svnworkHome\$localFolder\$branchVersion\clean -destination $svnworkHome\$localFolder\$branchVersion\working -recurse
+            logEvent "Installing $localFolder\$branchVersion clean to working"
+            copy-item $svnworkHome\$localFolder\$branchVersion\clean -destination $svnworkHome\$localFolder\$branchVersion\working -recurse
         }
         else 
         {
-			logEvent "Copying $localFolder clean to working"
+            logEvent "Copying $localFolder clean to working"
             copy-item $svnworkHome\$localFolder\trunk\clean -destination $svnworkHome\$localFolder\trunk\working -recurse
         }
 
-	}
+    }
 }
 
 function createSymLink ($linkName, $linkUrl) {
-	Junction.exe $linkName $linkUrl
+    Junction.exe $linkName $linkUrl
+}
+
+function installSubversion {
+    
 }
 
 function configureSubversion {
@@ -103,6 +99,10 @@ function configureSubversion {
     "store-plaintext-passwords = yes" >> $userHome\.subversion\servers
     "Configuring subversion" >> $logfile
     svn cat https://dev.bazaarvoice.com/svn/bvc/ops/trunk/scm/client/config > $userHome\.subversion\config
+}
+
+function installJava {
+    C:\Users\joshua.melvin\Downloads\jdk-6u30-windows-x64.exe /s INSTALLDIR=D:\temp\java\jre
 }
 
 function installJunction {
@@ -159,11 +159,21 @@ function installXmlBeans {
     Get-ChildItem -Filter "*xmlbeans*" | Rename-Item -NewName "xmlbeans"
 }
 
+function installTools {
+    installSubversion
+    configureSubversion
+    installJava
+    installJunction
+    installMaven
+    installAnt
+    installXmlBeans
+}
+
 function addEnvSetup {
-	Add-Content -Path $profile -Value ('$env:JAVA_HOME' + " = $javaHome")
-	Add-Content -Path $profile -Value ('$env:MAVEN_HOME' + " = $mavenHome")
-	Add-Content -Path $profile -Value ('$env:TOOLS_HOME' + " = $toolsHome")
-	Add-Content -Path $profile -Value ('$env:path' + " += ;$toolsHome\junction;$toolsHome\maven\bin;$toolsHome\ant\bin;$toolsHome\xmlbeans;$javaHome;$javaHome\bin;")
+    Add-Content -Path $profile -Value ('$env:JAVA_HOME' + " = $javaHome")
+    Add-Content -Path $profile -Value ('$env:MAVEN_HOME' + " = $mavenHome")
+    Add-Content -Path $profile -Value ('$env:TOOLS_HOME' + " = $toolsHome")
+    Add-Content -Path $profile -Value ('$env:path' + " += ;$toolsHome\junction;$toolsHome\maven\bin;$toolsHome\ant\bin;$toolsHome\xmlbeans;$javaHome;$javaHome\bin;")
 }
 
 
