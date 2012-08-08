@@ -131,6 +131,7 @@ function createSymLink ($linkName, $linkUrl) {
 }
 
 function getToolInstallers {
+	logEvent "Copying installers to local path"
     New-Item -Type directory -Path c:\temp\installers
     cd "\\ausfs01\Client Services\Implementation Design\_Personal Folders\JoshM\"
 	Copy-Item *.* "c:\temp\installers"
@@ -138,6 +139,7 @@ function getToolInstallers {
 
 function deleteToolInstallers {
 	Remove-Item c:\temp\installers -Recurse
+	logEvent "Deleted installers"
 }
 
 function installSubversion {
@@ -212,6 +214,15 @@ function installXmlBeans {
     logEvent ("Completed installing xmlbeans")
 }
 
+function addEnvSetup {
+    Add-Content -Path $profile -Value ("`n`$env:JAVA_HOME" + " = `'$javaHome`'")
+    Add-Content -Path $profile -Value ("`$env:MAVEN_HOME" + " = `'$mavenHome`'")
+    Add-Content -Path $profile -Value ("`$env:TOOLS_HOME" + " = `'$toolsHome`'")
+    Add-Content -Path $profile -Value ("`$env:path" + " += `';$toolsHome\junction;$toolsHome\maven\bin;$toolsHome\ant\bin;$toolsHome\xmlbeans;$javaHome;$javaHome\bin;`'")
+	. $PROFILE
+	logEvent "Added environment variables to profile"
+}
+
 function installTools {
     getToolInstallers
     installSubversion
@@ -222,60 +233,66 @@ function installTools {
     installAnt
     installXmlBeans
 	deleteToolInstallers
+	addEnvSetup
+	##### RUN JUNCTION FIRST TIME #####
+	Junction.exe temp c:\temp
+	$runJunctionOnce = new-object -comobject wscript.shell
+	$b = $runJunctionOnce.popup("You must accept terms of Junction's first run to continue installing ",0,"Accept Junction terms to continue",1)
+	Junction.exe -d temp
 }
-
-function addEnvSetup {
-    Add-Content -Path $profile -Value ("`n`$env:JAVA_HOME" + " = `'$javaHome`'")
-    Add-Content -Path $profile -Value ("`$env:MAVEN_HOME" + " = `'$mavenHome`'")
-    Add-Content -Path $profile -Value ("`$env:TOOLS_HOME" + " = `'$toolsHome`'")
-    Add-Content -Path $profile -Value ("`$env:path" + " += `';$toolsHome\junction;$toolsHome\maven\bin;$toolsHome\ant\bin;$toolsHome\xmlbeans;$javaHome;$javaHome\bin;`'")
-	. $PROFILE
-}
-
 
 ##### BEGIN INSTALLATION #####
-New-Item -Type directory -Path $svnworkHome
-Write-Output "Windows Bazaarvoice Dev Environment Setup Script" > $logfile
-logEvent "Started install at"
+try {
+	New-Item -Type directory -Path $svnworkHome
+	Write-Output "Windows Bazaarvoice Dev Environment Setup Script" > $logfile
+	logEvent "Started install at"
 
-installTools
-addEnvSetup
+	installTools
 
-##### GET LATEST BRANCH VERSION #####
-$branchVersion = svn ls $branchUrl | Sort-Object -Descending | Select-Object -First 1 -Skip 1 | %{$_ -replace '/','' }
+	##### GET LATEST BRANCH VERSION #####
+	$branchVersion = svn ls $branchUrl | Sort-Object -Descending | Select-Object -First 1 -Skip 1 | %{$_ -replace '/','' }
 
-#getSvnScripts
-getFiles -remoteUrl $svnScriptsUrl -localFolder svnscripts -workingClean working
-#getTechServices
-getFiles -remoteUrl $techservicesUrl -localFolder techservices -workingClean working
-#getPrrTrunk
-getFiles -remoteUrl $prrTrunkUrl -localFolder prr -workingClean working
-#getDefaultUiTrunk
-getFiles -remoteUrl $defaultUiTrunkUrl -localFolder defaultui -workingClean clean
-#getCustomersTrunk
-getFiles -remoteUrl $customersTrunkUrl -localFolder customers -workingClean clean
-#getPrrBranch $branchVersion
-getFiles -remoteUrl $prrBranchUrl -localFolder prr -currentBranchVersion $branchVersion -workingClean working
-createSymLink -linkName branch -linkUrl $svnworkHome\prr\$branchVersion
-#getDefaultUiBranch $branchVersion
-getFiles -remoteUrl $defaultUiBranchUrl -localFolder defaultui -currentBranchVersion $branchVersion -workingClean clean
-createSymLink -linkName branch -linkUrl $svnworkHome\defaultui\$branchVersion
+	#getSvnScripts
+	getFiles -remoteUrl $svnScriptsUrl -localFolder svnscripts -workingClean working
+	#getTechServices
+	getFiles -remoteUrl $techservicesUrl -localFolder techservices -workingClean working
+	#getPrrTrunk
+	getFiles -remoteUrl $prrTrunkUrl -localFolder prr -workingClean working
+	#getDefaultUiTrunk
+	getFiles -remoteUrl $defaultUiTrunkUrl -localFolder defaultui -workingClean clean
+	#getCustomersTrunk
+	getFiles -remoteUrl $customersTrunkUrl -localFolder customers -workingClean clean
+	#getPrrBranch $branchVersion
+	getFiles -remoteUrl $prrBranchUrl -localFolder prr -currentBranchVersion $branchVersion -workingClean working
+	createSymLink -linkName branch -linkUrl $svnworkHome\prr\$branchVersion
+	#getDefaultUiBranch $branchVersion
+	getFiles -remoteUrl $defaultUiBranchUrl -localFolder defaultui -currentBranchVersion $branchVersion -workingClean clean
+	createSymLink -linkName branch -linkUrl $svnworkHome\defaultui\$branchVersion
 
-setUpBazaarvoiceHome
+	setUpBazaarvoiceHome
 
-# INSTALL LOCAL LDAP CERTIFICATE
-logEvent "Installing local LDAP certificate... "
-keytool.exe -importkeystore -alias shareddev -storepass "changeit" -keystore $env:JAVA_HOME\jre\lib\security\cacerts -file $svnworkHome\techservices\trunk\working\tools\misc\dev-install\labCA.pem
-logEvent "  Installing local Maven certificate... "
-keytool.exe -importkeystore -alias bvrepo -storepass "changeit" -keystore $env:JAVA_HOME\jre\lib\security\cacerts -file $svnworkHome\techservices\trunk\working\tools\misc\dev-install\repo-ssl.cer
+	# INSTALL LOCAL LDAP CERTIFICATE
+	logEvent "Installing local LDAP certificate... "
+	keytool.exe -import -alias "shareddev" -storepass "changeit" -keystore $env:JAVA_HOME\jre\lib\security\cacerts -file $svnworkHome\techservices\trunk\working\tools\misc\dev-install\labCA.pem
+	logEvent "  Installing local Maven certificate... "
+	keytool.exe -import -alias bvrepo -storepass "changeit" -keystore $env:JAVA_HOME\jre\lib\security\cacerts -file $svnworkHome\techservices\trunk\working\tools\misc\dev-install\repo-ssl.cer
 
-##### CONFIGURE MAVEN #####
-New-Item -Type directory -Path ($userHome+"\.m2")
-Copy-Item ($svnworkHome+"\techservices\trunk\working\tools\bin\maven-install\ts-maven-settings.xml") ($userHome+"\.m2\settings.xml")
-New-Item -Type file -Path ($userHome+"\.mavenrc")
-echo MAVEN_OPTS='"-Xms256m -Xmx2g -XX:MaxPermSize=256m -server"' > ($userHome+"\.mavenrc")
-logEvent ("Completed installing maven")
-
+	##### CONFIGURE MAVEN #####
+	New-Item -Type directory -Path ($userHome+"\.m2")
+	Copy-Item ($svnworkHome+"\techservices\trunk\working\tools\bin\maven-install\ts-maven-settings.xml") ($userHome+"\.m2\settings.xml")
+	New-Item -Type file -Path ($userHome+"\.mavenrc")
+	echo MAVEN_OPTS='"-Xms256m -Xmx2g -XX:MaxPermSize=256m -server"' > ($userHome+"\.mavenrc")
+	logEvent ("Completed installing maven")
+}
+catch
+{
+	logEvent "ERROR: $_"
+	logEvent "Install failed. Please review errors."
+}
+finally
+{
+	Write-Output "Install has ended"
+}
 
 logEvent "Install completed"
  
